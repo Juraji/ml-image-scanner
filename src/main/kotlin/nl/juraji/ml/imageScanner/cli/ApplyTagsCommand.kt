@@ -39,6 +39,7 @@ class ApplyTagsCommand(
             .map { (path, tags) -> Paths.get(path) to tags.map(Tag::tag) }
 
         val faces = readDetectionFile(faceDetectionFile, facesFileTypeReference)
+            .map { (path, faces) -> path to faces.filter { it.matched } }
             .map { (path, faces) -> Paths.get(path) to faces.map(Face::name) }
             .filter { (_, faces) -> faces.isNotEmpty() }
 

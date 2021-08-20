@@ -60,8 +60,8 @@ class FileService(
         path: Path,
         vararg options: StandardOpenOption = DEFAULT_OPEN_OPTIONS
     ): Mono<Void> =
-        deferredIoFrom { dataBuffers }
-            .map { Files.createDirectories(path.parent) }
+        deferredIoFrom { path }
+            .flatMap { createDirectories(path.parent) }
             .flatMap { DataBufferUtils.write(dataBuffers, path, *options) }
 
 
@@ -70,8 +70,9 @@ class FileService(
         path: Path,
         vararg options: StandardOpenOption = DEFAULT_OPEN_OPTIONS
     ): Mono<Path> =
-        deferredIoFrom { bytes }
-            .map { Files.write(path, it, *options) }
+        deferredIoFrom { path }
+            .flatMap { createDirectories(path.parent) }
+            .map { Files.write(path, bytes, *options) }
 
     fun readBytes(path: Path): Mono<ByteArray> =
         deferredIoFrom { path }
