@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tagbox
+  labels:
+    app: {{ .Chart.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  selector:
+    matchLabels:
+      app: tagbox
+  replicas: {{ .Values.pods.tagbox.replicas }}
+  template:
+    metadata:
+      name: tagbox
+      labels:
+        app: tagbox
+    spec:
+      containers:
+        - name: tagbox
+          image: "machinebox/tagbox:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: machinebox-secret
+          resources:
+            requests:
+              cpu: {{ .Values.pods.tagbox.resources.cpu }}
+              memory: {{ .Values.pods.tagbox.resources.memory }}
+            limits:
+              cpu: {{ .Values.pods.tagbox.resources.cpu }}
+              memory: {{ .Values.pods.tagbox.resources.memory }}
+  {{- template "machinebox.probes" .}}

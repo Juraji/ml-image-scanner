@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: facebox
+  labels:
+    app: {{ .Chart.Name }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: {{ .Values.pods.facebox.replicas }}
+  selector:
+    matchLabels:
+      app: facebox
+  template:
+    metadata:
+      name: facebox
+      labels:
+        app: facebox
+    spec:
+      containers:
+        - name: facebox
+          image: "machinebox/facebox:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: machinebox-secret
+          resources:
+            requests:
+              cpu: {{ .Values.pods.facebox.resources.cpu }}
+              memory: {{ .Values.pods.facebox.resources.memory }}
+            limits:
+              cpu: {{ .Values.pods.facebox.resources.cpu }}
+              memory: {{ .Values.pods.facebox.resources.memory }}
+  {{- template "machinebox.probes" . }}

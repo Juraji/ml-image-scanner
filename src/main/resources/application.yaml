@@ -1,0 +1,11 @@
+output:
+  data-output-directory: "./output"
+
+machine-box:
+  tag-box:
+    endpoint: "http://localhost:80/tagbox"
+    state-file: "./config/tagbox.state"
+    blacklist: []
+  face-box:
+    endpoint: "http://localhost:80/facebox"
+    state-file: "./config/facebox.state"

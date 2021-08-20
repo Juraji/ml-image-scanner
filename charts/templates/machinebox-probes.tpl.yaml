@@ -1,0 +1,20 @@
+{{- define "machinebox.probes" }}
+          readinessProbe:
+            httpGet:
+              path: "/readyz"
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 30
+            successThreshold: 1
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: "/liveness"
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+{{- end }}

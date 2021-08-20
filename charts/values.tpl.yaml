@@ -1,0 +1,14 @@
+hostname: "machine-box.ml.lo"
+mbKey: ""
+
+pods:
+  tagbox:
+    replicas: 2
+    resources:
+      cpu: 1000m
+      memory: 2Gi
+  facebox:
+    replicas: 3
+    resources:
+      cpu: 1000m
+      memory: 2Gi
