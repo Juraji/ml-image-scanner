@@ -1,11 +1,11 @@
 package nl.juraji.ml.imageScanner.cli
 
 import com.fasterxml.jackson.core.type.TypeReference
-import kotlinx.cli.ArgType
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.model.tag.Tag
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
@@ -18,13 +18,13 @@ class ApplyTagsCommand(
     private val fileService: FileService
 ) : AsyncCommand("apply", "Apply tags and faces from detection results") {
     private val tagDetectionFile by option(
-        ArgType.String,
+        ArgTypes.Path,
         fullName = "tags-file",
         shortName = "t",
         description = "Detection result file path for tags"
     )
     private val faceDetectionFile by option(
-        ArgType.String,
+        ArgTypes.Path,
         fullName = "faces-file",
         shortName = "f",
         description = "Detection result file path for faces"
@@ -55,11 +55,10 @@ class ApplyTagsCommand(
     }
 
     private fun <K : Any, V : Any> readDetectionFile(
-        filePath: String?,
+        filePath: Path?,
         typeReference: TypeReference<Map<K, List<V>>>
     ): Flux<Map.Entry<K, List<V>>> = Mono
         .justOrEmpty(filePath)
-        .map(Paths::get)
         .filterWhen(fileService::fileExists)
         .flatMap(fileService::readBytes)
         .flatMap { fileService.deserialize(it, typeReference) }

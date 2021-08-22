@@ -1,6 +1,5 @@
 package nl.juraji.ml.imageScanner.cli.faces
 
-import kotlinx.cli.ArgType
 import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
@@ -9,6 +8,7 @@ import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FaceBoxService
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import java.nio.file.Path
@@ -22,7 +22,7 @@ class DetectFacesCommand(
     private val faceBoxService: FaceBoxService,
 ) : AsyncCommand("detect-faces", "Detect faces in an image") {
     private val file by option(
-        type = ArgType.String,
+        type = ArgTypes.Path,
         fullName = "file",
         shortName = "f",
         description = "Path to image file or folder with images to detect"
@@ -33,11 +33,9 @@ class DetectFacesCommand(
             .get(outputConfiguration.dataOutputDirectory)
             .resolve("detected-faces.json")
 
-        val path = Paths.get(file)
+        logger.info("Detecting faces recursively in $file file(s)...")
 
-        logger.info("Detecting faces recursively in $path file(s)...")
-
-        return this.fileService.walkDirectory(path)
+        return this.fileService.walkDirectory(file)
             .parallel()
             .filter { it.isRegularFile() }
             .flatMap { p ->

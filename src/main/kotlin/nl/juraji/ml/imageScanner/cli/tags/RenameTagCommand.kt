@@ -1,10 +1,10 @@
 package nl.juraji.ml.imageScanner.cli.tags
 
-import kotlinx.cli.ArgType
 import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.services.TagBoxService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 
@@ -13,12 +13,12 @@ class RenameTagCommand(
     private val tagBoxService: TagBoxService
 ) : AsyncCommand("rename-tag", "Rename an existing tag") {
     private val tagId by option(
-        ArgType.String,
+        ArgTypes.String,
         fullName = "id",
         description = "Id with which the tag was created"
     ).required()
     private val newName by option(
-        ArgType.String,
+        ArgTypes.String,
         fullName = "new-name",
         description = "New name for tag"
     ).required()

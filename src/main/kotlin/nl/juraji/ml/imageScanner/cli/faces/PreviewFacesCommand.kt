@@ -1,7 +1,6 @@
 package nl.juraji.ml.imageScanner.cli.faces
 
 import com.fasterxml.jackson.core.type.TypeReference
-import kotlinx.cli.ArgType
 import kotlinx.cli.default
 import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.ApplyTagsCommand
@@ -10,6 +9,7 @@ import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
@@ -29,14 +29,14 @@ class PreviewFacesCommand(
     private val outputConfiguration: OutputConfiguration,
 ) : AsyncCommand("preview-faces", "Preview face detections using the actual images") {
     private val faceDetectionFile by option(
-        ArgType.String,
+        ArgTypes.Path,
         fullName = "faces-file",
         shortName = "f",
         description = "Detection result file path for faces"
     ).required()
 
     private val sampleSize by option(
-        ArgType.Int,
+        ArgTypes.Int,
         fullName = "sample-size",
         shortName = "s",
         description = "Limit the amount of previews to s. Set this higher than the image count to create all previews"
@@ -87,12 +87,10 @@ class PreviewFacesCommand(
         }
     }
 
-    private fun readDetectionFile(
-        filePath: String
-    ): Flux<Pair<Path, List<Face>>> {
+    private fun readDetectionFile(filePath: Path): Flux<Pair<Path, List<Face>>> {
         val facesFileTypeReference = object : TypeReference<Map<String, List<Face>>>() {}
         return Mono
-            .just(filePath).map(Paths::get)
+            .just(filePath)
             .filterWhen(fileService::fileExists)
             .flatMap(fileService::readBytes)
             .flatMap { fileService.deserialize(it, facesFileTypeReference) }
