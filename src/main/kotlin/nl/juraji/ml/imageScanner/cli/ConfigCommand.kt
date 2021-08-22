@@ -1,18 +1,20 @@
 package nl.juraji.ml.imageScanner.cli
 
 import kotlinx.cli.ArgType
-import kotlinx.cli.Subcommand
 import kotlinx.cli.default
 import kotlinx.cli.delimiter
 import nl.juraji.ml.imageScanner.configuration.FaceBoxConfiguration
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
+import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
-import java.io.FileWriter
-import java.nio.charset.Charset
+import reactor.core.publisher.Mono
+import java.nio.file.Path
+import java.nio.file.Paths
 
 enum class ConfigAction {
     SET, GET
@@ -23,7 +25,8 @@ class ConfigCommand(
     private val tagBoxConfiguration: TagBoxConfiguration,
     private val outputConfiguration: OutputConfiguration,
     private val faceBoxConfiguration: FaceBoxConfiguration,
-) : Subcommand("config", "Set configuration options") {
+    private val fileService: FileService,
+) : AsyncCommand("config", "Set configuration options") {
     private val action by argument(
         ArgType.Choice<ConfigAction>(),
         "action",
@@ -63,14 +66,15 @@ class ConfigCommand(
         description = "Target file to persist Face Box state to"
     ).default(faceBoxConfiguration.stateFile)
 
-    override fun execute() {
-        when (action) {
+    override fun executeAsync(): Publisher<*> {
+        return when (action) {
             ConfigAction.GET -> printConfiguration()
             ConfigAction.SET -> updateConfiguration()
         }
     }
 
-    private fun printConfiguration() {
+    private fun printConfiguration(): Mono<Unit> {
+
         logger.info(
             """
             --
@@ -83,36 +87,40 @@ class ConfigCommand(
                 face-box.state-file = ${faceBoxConfiguration.stateFile}
             """.trimIndent()
         )
+
+        return Mono.empty()
     }
 
-    private fun updateConfiguration() {
-        FileWriter("application.yaml", Charset.defaultCharset(), false).use { writer ->
-            val opts = DumperOptions().apply {
-                isPrettyFlow = true
-                defaultFlowStyle = DumperOptions.FlowStyle.BLOCK
-            }
-
-            Yaml(opts).dump(
-                mapOf(
-                    "output" to mapOf(
-                        "data-output-directory" to outputDirectory
-                    ),
-                    "machine-box" to mapOf(
-                        "tag-box" to mapOf(
-                            "endpoint" to tagBoxEndpoint,
-                            "state-file" to tagBoxStateFile,
-                            "blacklist" to tagBoxBlacklist.ifEmpty { tagBoxConfiguration.blacklist }
-                        ),
-                        "face-box" to mapOf(
-                            "endpoint" to faceBoxEndpoint,
-                            "state-file" to faceBoxStateFile
-                        )
-                    )
-                ),
-                writer
-            )
+    private fun updateConfiguration(): Mono<Path> {
+        val yamlOpts = DumperOptions().apply {
+            isPrettyFlow = true
+            defaultFlowStyle = DumperOptions.FlowStyle.BLOCK
         }
+
+        val configMap = mapOf(
+            "output" to mapOf(
+                "data-output-directory" to outputDirectory
+            ),
+            "machine-box" to mapOf(
+                "tag-box" to mapOf(
+                    "endpoint" to tagBoxEndpoint,
+                    "state-file" to tagBoxStateFile,
+                    "blacklist" to tagBoxBlacklist.ifEmpty { tagBoxConfiguration.blacklist }
+                ),
+                "face-box" to mapOf(
+                    "endpoint" to faceBoxEndpoint,
+                    "state-file" to faceBoxStateFile
+                )
+            )
+        )
+
+        return Mono.just(configMap)
+            .map { Yaml(yamlOpts).dump(it) }
+            .flatMap { fileService.writeBytesTo(it.toByteArray(), CONFIG_FILE_PATH) }
+            .doOnSuccess { logger.info("Successfully written configuration to $CONFIG_FILE_PATH") }
     }
 
-    companion object : LoggerCompanion(ConfigCommand::class)
+    companion object : LoggerCompanion(ConfigCommand::class) {
+        private val CONFIG_FILE_PATH = Paths.get("./application.yaml")
+    }
 }

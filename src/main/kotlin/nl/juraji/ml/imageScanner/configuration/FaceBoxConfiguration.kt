@@ -12,7 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient
 data class FaceBoxConfiguration(
     override val endpoint: String,
     override val stateFile: String,
-): MachineBoxConfiguration {
+) : MachineBoxConfiguration {
 
     @Bean("faceBoxWebClient")
     fun faceBoxWebClient(): WebClient = WebClient.builder()

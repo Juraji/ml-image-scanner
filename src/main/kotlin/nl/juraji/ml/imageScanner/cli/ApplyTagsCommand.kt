@@ -2,12 +2,11 @@ package nl.juraji.ml.imageScanner.cli
 
 import com.fasterxml.jackson.core.type.TypeReference
 import kotlinx.cli.ArgType
-import kotlinx.cli.Subcommand
-import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.model.tag.Tag
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -17,21 +16,21 @@ import java.nio.file.Paths
 @Component
 class ApplyTagsCommand(
     private val fileService: FileService
-) : Subcommand("apply", "Apply tags and faces from detection results") {
+) : AsyncCommand("apply", "Apply tags and faces from detection results") {
     private val tagDetectionFile by option(
         ArgType.String,
         fullName = "tags-file",
         shortName = "t",
         description = "Detection result file path for tags"
-    ).required()
+    )
     private val faceDetectionFile by option(
         ArgType.String,
         fullName = "faces-file",
         shortName = "f",
         description = "Detection result file path for faces"
-    ).required()
+    )
 
-    override fun execute() {
+    override fun executeAsync(): Publisher<*> {
         val tagsFileTypeReference = object : TypeReference<Map<String, List<Tag>>>() {}
         val facesFileTypeReference = object : TypeReference<Map<String, List<Face>>>() {}
 
@@ -43,7 +42,7 @@ class ApplyTagsCommand(
             .map { (path, faces) -> Paths.get(path) to faces.map(Face::name) }
             .filter { (_, faces) -> faces.isNotEmpty() }
 
-        Flux.concat(tags, faces)
+        return Flux.concat(tags, faces)
             .reduce<Map<Path, List<String>>>(emptyMap()) { prev, (path, list) ->
                 val mergedList = (prev[path] ?: emptyList()) + list
                 prev + (path to mergedList)
@@ -52,16 +51,15 @@ class ApplyTagsCommand(
             .map { (path, tList) -> path to tList.joinToString(",") }
             .doOnNext { (p, t) -> logger.info("Tags for $p: $t") }
             .flatMap { (path, tags) -> fileService.applyFileComments(path, tags) }
-            .runCatching { blockLast() }
-            .onSuccess { logger.info("Tags merged and applied!") }
-            .onFailure { logger.error("Could not merge and apply tags", it) }
+            .doOnComplete { logger.info("Tags merged and applied!") }
     }
 
     private fun <K : Any, V : Any> readDetectionFile(
-        filePath: String,
+        filePath: String?,
         typeReference: TypeReference<Map<K, List<V>>>
     ): Flux<Map.Entry<K, List<V>>> = Mono
-        .just(filePath).map(Paths::get)
+        .justOrEmpty(filePath)
+        .map(Paths::get)
         .filterWhen(fileService::fileExists)
         .flatMap(fileService::readBytes)
         .flatMap { fileService.deserialize(it, typeReference) }

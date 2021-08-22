@@ -2,14 +2,14 @@ package nl.juraji.ml.imageScanner.cli.faces
 
 import com.fasterxml.jackson.core.type.TypeReference
 import kotlinx.cli.ArgType
-import kotlinx.cli.Subcommand
 import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.ApplyTagsCommand
+import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.blockLastAndCatch
+import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -26,7 +26,7 @@ import kotlin.io.path.extension
 class PreviewFacesCommand(
     private val fileService: FileService,
     private val outputConfiguration: OutputConfiguration,
-) : Subcommand("preview-faces", "Preview face detections using the actual images") {
+) : AsyncCommand("preview-faces", "Preview face detections using the actual images") {
     private val faceDetectionFile by option(
         ArgType.String,
         fullName = "faces-file",
@@ -34,18 +34,16 @@ class PreviewFacesCommand(
         description = "Detection result file path for faces"
     ).required()
 
-    override fun execute() {
+    override fun executeAsync(): Publisher<*> {
         val outputDir = Paths.get(outputConfiguration.dataOutputDirectory).resolve("face-previews")
         val faces = readDetectionFile(faceDetectionFile)
 
-        faces
+        return faces
             .parallel()
             .map { (path, faces) -> outputDir.resolve(path.fileName) to drawFaceBoxes(path, faces) }
             .flatMap { (path, imgBytes) -> fileService.writeBytesTo(imgBytes, path) }
             .doOnNext { logger.info("Created preview file $it") }
-            .blockLastAndCatch()
-            .onSuccess { logger.info("Created preview files in $outputDir") }
-            .onFailure { logger.error("Error creating preview files", it) }
+            .doOnComplete() { logger.info("Created preview files in $outputDir") }
     }
 
     private fun drawFaceBoxes(path: Path, faces: List<Face>): ByteArray {

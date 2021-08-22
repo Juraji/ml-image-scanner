@@ -1,8 +1,8 @@
 package nl.juraji.ml.imageScanner.cli.tags
 
 import kotlinx.cli.ArgType
-import kotlinx.cli.Subcommand
 import kotlinx.cli.required
+import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
 import nl.juraji.ml.imageScanner.model.tag.Tag
@@ -10,7 +10,7 @@ import nl.juraji.ml.imageScanner.model.tag.TagResult
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.services.TagBoxService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.blockAndCatch
+import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -22,7 +22,7 @@ class DetectTagsCommand(
     private val tagBoxConfiguration: TagBoxConfiguration,
     private val tagBoxService: TagBoxService,
     private val fileService: FileService,
-) : Subcommand("detect-tags", "Detect tags in an image") {
+) : AsyncCommand("detect-tags", "Detect tags in an image") {
     private val file by option(
         type = ArgType.String,
         fullName = "file",
@@ -30,7 +30,7 @@ class DetectTagsCommand(
         description = "Path to image file or folder with images to detect"
     ).required()
 
-    override fun execute() {
+    override fun executeAsync(): Publisher<*> {
         val outputPath = Paths
             .get(outputConfiguration.dataOutputDirectory)
             .resolve("detected-tags.json")
@@ -39,7 +39,7 @@ class DetectTagsCommand(
 
         logger.info("Detecting tags in $path...")
 
-        this.fileService.walkDirectory(path)
+        return this.fileService.walkDirectory(path)
             .filter { it.isRegularFile() }
             .parallel()
             .flatMap { p ->
@@ -53,9 +53,7 @@ class DetectTagsCommand(
             .reduce<Map<Path, List<Tag>>>(emptyMap()) { prev, next -> prev + next }
             .flatMap { fileService.serialize(it) }
             .flatMap { fileService.writeBytesTo(it, outputPath) }
-            .blockAndCatch()
-            .onSuccess { logger.info("Tag detection completed, check $it for the results.") }
-            .onFailure { logger.error("Failed detecting tags", it) }
+            .doOnSuccess { logger.info("Tag detection completed, check $it for the results.") }
     }
 
     companion object : LoggerCompanion(DetectTagsCommand::class)

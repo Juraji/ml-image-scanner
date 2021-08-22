@@ -1,15 +1,15 @@
 package nl.juraji.ml.imageScanner.cli.faces
 
 import kotlinx.cli.ArgType
-import kotlinx.cli.Subcommand
 import kotlinx.cli.required
+import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.model.face.DetectFacesResult
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FaceBoxService
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.blockAndCatch
+import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -20,7 +20,7 @@ class DetectFacesCommand(
     private val outputConfiguration: OutputConfiguration,
     private val fileService: FileService,
     private val faceBoxService: FaceBoxService,
-) : Subcommand("detect-faces", "Detect faces in an image") {
+) : AsyncCommand("detect-faces", "Detect faces in an image") {
     private val file by option(
         type = ArgType.String,
         fullName = "file",
@@ -28,7 +28,7 @@ class DetectFacesCommand(
         description = "Path to image file or folder with images to detect"
     ).required()
 
-    override fun execute() {
+    override fun executeAsync(): Publisher<*> {
         val outputPath = Paths
             .get(outputConfiguration.dataOutputDirectory)
             .resolve("detected-faces.json")
@@ -37,7 +37,7 @@ class DetectFacesCommand(
 
         logger.info("Detecting faces recursively in $path file(s)...")
 
-        this.fileService.walkDirectory(path)
+        return this.fileService.walkDirectory(path)
             .parallel()
             .filter { it.isRegularFile() }
             .flatMap { p ->
@@ -50,9 +50,7 @@ class DetectFacesCommand(
             .reduce<Map<Path, List<Face>>>(emptyMap()) { prev, next -> prev + next }
             .flatMap { fileService.serialize(it) }
             .flatMap { fileService.writeBytesTo(it, outputPath) }
-            .blockAndCatch()
-            .onSuccess { logger.info("Face detection completed, check $it for the results.") }
-            .onFailure { logger.error("Failed detecting faces", it) }
+            .doOnSuccess { logger.info("Face detection completed, check $it for the results.") }
     }
 
     companion object : LoggerCompanion(DetectFacesCommand::class)
