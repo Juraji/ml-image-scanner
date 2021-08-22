@@ -17,17 +17,15 @@ import java.time.Duration
 
 @Service
 class FaceBoxService(
-    @Qualifier("faceBoxWebClient") private val faceBoxWebClient: WebClient,
+    @Qualifier("faceBoxWebClient") faceBoxWebClient: WebClient,
     fileService: FileService,
     faceBoxConfiguration: FaceBoxConfiguration,
 ) : MachineBoxService(fileService, faceBoxWebClient, faceBoxConfiguration) {
 
-    fun detect(file: Path): Mono<DetectFacesResult> = withReadStateManagement {
-        faceBoxWebClient
-            .post()
+    fun detect(file: Path): Mono<DetectFacesResult> = withManagedStateClient {
+        post()
             .uri("/check")
             .contentType(MediaType.MULTIPART_FORM_DATA)
-            .cookies(::applyStateCookies)
             .multiPartBody {
                 filePart("file", file)
             }
@@ -36,7 +34,7 @@ class FaceBoxService(
     }
         .retryWhen(Retry.backoff(6, Duration.ofSeconds(10)))
 
-    fun teach(name: String, file: Path): Mono<Face> = withStateManagement {
+    fun teach(name: String, file: Path): Mono<Face> = withManagedStatePersistingClient {
         val id = file.fileName.toString()
         val faceResult = Face(
             id = id,
@@ -45,11 +43,9 @@ class FaceBoxService(
             confidence = 1.0,
         )
 
-        faceBoxWebClient
-            .post()
+        post()
             .uri("/teach")
             .contentType(MediaType.MULTIPART_FORM_DATA)
-            .cookies(::applyStateCookies)
             .multiPartBody {
                 filePart("file", file, id)
                 part("name", name)
@@ -60,11 +56,9 @@ class FaceBoxService(
             .thenReturn(faceResult)
     }
 
-    fun delete(id: String): Mono<Unit> = withStateManagement {
-        faceBoxWebClient
-            .delete()
+    fun delete(id: String): Mono<Unit> = withManagedStatePersistingClient {
+        delete()
             .uri("/teach/{id}", mapOf("id" to id))
-            .cookies(::applyStateCookies)
             .retrieve()
             .bodyToMono()
     }

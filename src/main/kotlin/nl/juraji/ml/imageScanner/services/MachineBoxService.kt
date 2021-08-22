@@ -3,10 +3,12 @@ package nl.juraji.ml.imageScanner.services
 import nl.juraji.ml.imageScanner.configuration.MachineBoxConfiguration
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import nl.juraji.ml.imageScanner.util.filePart
+import nl.juraji.ml.imageScanner.util.iif
 import nl.juraji.ml.imageScanner.util.multiPartBody
 import org.springframework.core.io.buffer.DataBuffer
-import org.springframework.http.HttpCookie
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseCookie
+import org.springframework.util.LinkedMultiValueMap
 import org.springframework.util.MultiValueMap
 import org.springframework.web.reactive.function.client.ClientResponse
 import org.springframework.web.reactive.function.client.WebClient
@@ -23,65 +25,66 @@ abstract class MachineBoxService(
 ) {
     private val stateFilePath: Path = Paths.get(configuration.stateFile)
 
-    protected fun <R> withReadStateManagement(supplier: StateMgmtBlock.() -> Mono<R>): Mono<R> =
-        withStateManagement(true, supplier)
+    protected fun <R> withManagedStateClient(supplier: WebClient.() -> Mono<R>): Mono<R> =
+        withManagedStateClient(true, supplier)
 
-    protected fun <R> withStateManagement(supplier: StateMgmtBlock.() -> Mono<R>): Mono<R> =
-        withStateManagement(false, supplier)
+    protected fun <R> withManagedStatePersistingClient(supplier: WebClient.() -> Mono<R>): Mono<R> =
+        withManagedStateClient(false, supplier)
 
-    private fun <R> withStateManagement(preflightOnly: Boolean, supplier: StateMgmtBlock.() -> Mono<R>): Mono<R> =
-        uploadState()
-            .map { StateMgmtBlock(it, stateFilePath) }
-            .flatMap { state ->
-                val response = supplier.invoke(state)
+    private fun <R> withManagedStateClient(readOnly: Boolean, supplier: WebClient.() -> Mono<R>): Mono<R> =
+        uploadStateAndGetSessionCookies()
+            .map { cookies ->
+                machineBoxWebClient.mutate()
+                    .defaultCookies { target -> target.addAll(cookies) }
+                    .build()
+            }
+            .flatMap { client ->
+                val response = supplier.invoke(client)
 
-                if (preflightOnly) response
-                else response.flatMap { res -> saveState(state).thenReturn(res!!) }
+                if (readOnly) response
+                else response.flatMap { res -> saveState(client).thenReturn(res!!) }
             }
 
-    private fun uploadState(): Mono<MultiValueMap<String, HttpCookie>> = Mono.just(stateFilePath)
-        .flatMap { fileService.fileExists(it) }
-        .flatMap { stateExists ->
-            @Suppress("UNCHECKED_CAST")
-            val toCookiesMono: (ClientResponse) -> Mono<MultiValueMap<String, HttpCookie>> = {
-                Mono.just(it.cookies() as MultiValueMap<String, HttpCookie>)
-            }
-
-            if (stateExists) machineBoxWebClient
+    private fun uploadStateAndGetSessionCookies(): Mono<MultiValueMap<String, String>> = Mono.just(stateFilePath)
+        .flatMap(fileService::fileExists)
+        .iif(
+            machineBoxWebClient
                 .post()
-                .uri("/state")
+                .uri(STATE_ENDPOINT)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .multiPartBody { filePart("file", stateFilePath) }
-                .exchangeToMono(toCookiesMono)
-                .doOnNext { logger.info("Pre-flight: Restored $stateFilePath as machine state, continuing with cookies: $it") }
-            else machineBoxWebClient
+                .exchangeToMono(this::mapSessionCookies)
+                .doOnNext { logger.debug("Pre-flight: Restored $stateFilePath as machine state, continuing with cookies: $it") },
+            machineBoxWebClient
                 .get()
-                .uri("/liveness")
-                .exchangeToMono(toCookiesMono)
-                .doOnNext { logger.info("Pre-flight: No state persisted, continuing with cookies: $it") }
-        }
+                .uri(NOOP_ENDPOINT)
+                .exchangeToMono(this::mapSessionCookies)
+                .doOnNext { logger.debug("Pre-flight: No state persisted, continuing with cookies: $it") }
+        )
 
-    private fun saveState(state: StateMgmtBlock): Mono<Void> {
-        val dataBuffers: Flux<DataBuffer> = machineBoxWebClient
+    private fun saveState(client: WebClient): Mono<Void> {
+        val dataBuffers: Flux<DataBuffer> = client
             .get()
-            .uri("/state")
-            .cookies(state::applyStateCookies)
+            .uri(STATE_ENDPOINT)
             .retrieve()
             .bodyToFlux()
 
-        return fileService.writeDataBuffersTo(dataBuffers, stateFilePath)
-            .doOnSuccess { logger.info("Post-flight: Persisted machine state in $stateFilePath") }
+        return fileService
+            .writeDataBuffersTo(dataBuffers, stateFilePath)
+            .doOnSuccess { logger.debug("Post-flight: Persisted machine state in $stateFilePath") }
     }
 
-    companion object : LoggerCompanion(MachineBoxService::class)
+    private fun mapSessionCookies(response: ClientResponse): Mono<MultiValueMap<String, String>> = Mono
+        .just(response)
+        .map(ClientResponse::cookies)
+        .map { responseCookies ->
+            responseCookies
+                .map { (key, values) -> key to values.map(ResponseCookie::getValue) }
+                .fold(LinkedMultiValueMap()) { acc, (key, values) -> acc.apply { addAll(key, values) } }
+        }
 
-    data class StateMgmtBlock(
-        val cookies: MultiValueMap<String, HttpCookie>,
-        val stateFilePath: Path,
-    ) {
-        fun applyStateCookies(target: MultiValueMap<String, String>) =
-            cookies.forEach { (key, cookies) ->
-                target.merge(key, cookies.map(HttpCookie::getValue)) { l, r -> l + r }
-            }
+    companion object : LoggerCompanion(MachineBoxService::class) {
+        private const val STATE_ENDPOINT = "/state"
+        private const val NOOP_ENDPOINT = "/liveness"
     }
 }

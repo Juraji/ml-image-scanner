@@ -16,17 +16,15 @@ import java.nio.file.Path
 
 @Service
 class TagBoxService(
-    @Qualifier("tagBoxWebClient") private val tagBoxWebClient: WebClient,
+    @Qualifier("tagBoxWebClient") tagBoxWebClient: WebClient,
     fileService: FileService,
     tagBoxConfiguration: TagBoxConfiguration
 ) : MachineBoxService(fileService, tagBoxWebClient, tagBoxConfiguration) {
 
-    fun detect(file: Path): Mono<TagResult> = withReadStateManagement {
-        tagBoxWebClient
-            .post()
+    fun detect(file: Path): Mono<TagResult> = withManagedStateClient {
+        post()
             .uri("/check")
             .contentType(MediaType.MULTIPART_FORM_DATA)
-            .cookies(::applyStateCookies)
             .multiPartBody {
                 filePart("file", file)
             }
@@ -34,14 +32,12 @@ class TagBoxService(
             .bodyToMono()
     }
 
-    fun teach(file: Path, tag: String): Mono<Tag> = withStateManagement {
+    fun teach(file: Path, tag: String): Mono<Tag> = withManagedStatePersistingClient {
         val id = file.fileName.toString()
 
-        tagBoxWebClient
-            .post()
+        post()
             .uri("/teach")
             .contentType(MediaType.MULTIPART_FORM_DATA)
-            .cookies(::applyStateCookies)
             .multiPartBody {
                 filePart("file", file, id)
                 part("tag", tag)
@@ -52,21 +48,17 @@ class TagBoxService(
             .thenReturn(Tag(id, tag, 1.0))
     }
 
-    fun rename(tagId: String, newName: String): Mono<Unit> = withStateManagement {
-        tagBoxWebClient
-            .patch()
+    fun rename(tagId: String, newName: String): Mono<Unit> = withManagedStatePersistingClient {
+        patch()
             .uri("/rename")
-            .cookies(::applyStateCookies)
             .bodyValue(RenameTagRequest(newName))
             .retrieve()
             .bodyToMono()
     }
 
-    fun delete(tagId: String): Mono<Unit> = withStateManagement {
-        tagBoxWebClient
-            .delete()
+    fun delete(tagId: String): Mono<Unit> = withManagedStatePersistingClient {
+        delete()
             .uri("/rename/{id}", mapOf("id" to tagId))
-            .cookies(::applyStateCookies)
             .retrieve()
             .bodyToMono()
     }

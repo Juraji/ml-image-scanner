@@ -42,6 +42,7 @@ class DetectTagsCommand(
         return this.fileService.walkDirectory(path)
             .filter { it.isRegularFile() }
             .parallel()
+            .doOnNext { logger.info("Detecting tags in \"$it\"...") }
             .flatMap { p ->
                 tagBoxService.detect(p)
                     .onErrorContinue { _, _ -> TagResult(emptyList(), emptyList()) }
