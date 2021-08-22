@@ -50,7 +50,7 @@ class ApplyTagsCommand(
             .flatMapMany { Flux.fromIterable(it.entries) }
             .map { (path, tList) -> path to tList.joinToString(",") }
             .doOnNext { (p, t) -> logger.info("Tags for $p: $t") }
-            .flatMap { (path, tags) -> fileService.applyFileComments(path, tags) }
+            .flatMap { (path, tags) -> fileService.setExifUserComment(path, tags) }
             .doOnComplete { logger.info("Tags merged and applied!") }
     }
 

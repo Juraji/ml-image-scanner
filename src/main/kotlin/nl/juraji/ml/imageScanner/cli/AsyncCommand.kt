@@ -10,7 +10,8 @@ import reactor.core.publisher.Mono
 import reactor.core.publisher.ParallelFlux
 
 abstract class AsyncCommand(
-    name: String, actionDescription: String
+    name: String,
+    actionDescription: String
 ) : Subcommand(name, actionDescription) {
 
     final override fun execute() {

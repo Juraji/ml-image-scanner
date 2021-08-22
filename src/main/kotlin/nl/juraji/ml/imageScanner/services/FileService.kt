@@ -6,6 +6,7 @@ import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import org.apache.commons.imaging.Imaging
 import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata
 import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter
+import org.apache.commons.imaging.formats.tiff.TiffImageMetadata
 import org.apache.commons.imaging.formats.tiff.constants.ExifTagConstants
 import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet
 import org.reactivestreams.Publisher
@@ -16,10 +17,7 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Scheduler
 import reactor.core.scheduler.Schedulers
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
+import java.nio.file.*
 
 @Service
 class FileService(
@@ -35,61 +33,62 @@ class FileService(
         )
 
     fun fileExists(path: Path): Mono<Boolean> =
-        deferredIoFrom { path }
-            .map(Files::exists)
+        deferIoFrom { Files.exists(path) }
 
     fun walkDirectory(path: Path): Flux<Path> =
-        deferredIoFrom { path }
-            .map { Files.walk(it) }
+        deferIoFrom { Files.walk(path) }
             .flatMapMany { Flux.fromStream(it) }
 
     fun serialize(obj: Any): Mono<ByteArray> =
-        deferredIoFrom { obj }
-            .map { objectMapper.writeValueAsBytes(it) }
+        deferIoFrom { objectMapper.writeValueAsBytes(obj) }
 
     fun <T : Any> deserialize(bytes: ByteArray, typeReference: TypeReference<out T>): Mono<T> =
-        deferredIoFrom { bytes }
-            .map { objectMapper.readValue(it, typeReference) }
+        deferIoFrom { objectMapper.readValue(bytes, typeReference) }
 
     fun createDirectories(path: Path): Mono<Path> =
-        deferredIoFrom { path }
-            .map { Files.createDirectories(path) }
+        deferIoFrom { Files.createDirectories(path) }
 
     fun writeDataBuffersTo(
         dataBuffers: Publisher<DataBuffer>,
         path: Path,
-        vararg options: StandardOpenOption = DEFAULT_OPEN_OPTIONS
+        vararg options: OpenOption = DEFAULT_OPEN_OPTIONS
     ): Mono<Void> =
-        deferredIoFrom { path }
-            .flatMap { createDirectories(path.parent) }
-            .flatMap { DataBufferUtils.write(dataBuffers, path, *options) }
-
+        createDirectories(path.parent)
+            .then(deferIo { DataBufferUtils.write(dataBuffers, path, *options) })
 
     fun writeBytesTo(
         bytes: ByteArray,
         path: Path,
-        vararg options: StandardOpenOption = DEFAULT_OPEN_OPTIONS
+        vararg options: OpenOption = DEFAULT_OPEN_OPTIONS
     ): Mono<Path> =
-        deferredIoFrom { path }
-            .flatMap { createDirectories(path.parent) }
-            .map { Files.write(path, bytes, *options) }
+        createDirectories(path.parent)
+            .then(deferIoFrom { Files.write(path, bytes, *options) })
+
+    fun moveFile(
+        source: Path,
+        target: Path,
+        vararg options: CopyOption = DEFAULT_COPY_OPTIONS
+    ): Mono<Path> =
+        createDirectories(target.parent)
+            .then(deferIoFrom { Files.move(source, target, *options) })
 
     fun readBytes(path: Path): Mono<ByteArray> =
-        deferredIoFrom { path }
-            .map { Files.readAllBytes(path) }
+        deferIoFrom { Files.readAllBytes(path) }
 
-    fun applyFileComments(path: Path, tags: String): Mono<Path> =
-        deferredIoFrom {
-            val outputSet: TiffOutputSet = Imaging.getMetadata(path.toFile())
-                ?.let { (it as JpegImageMetadata).exif?.outputSet }
-                ?: TiffOutputSet()
+    fun readExifUserComment(path: Path): Mono<String> =
+        deferIo { getExifCompatMetaData(path) }
+            .mapNotNull { it.getFieldValue(ExifTagConstants.EXIF_TAG_USER_COMMENT) }
 
-            val exifDirectory = outputSet.orCreateExifDirectory
-            exifDirectory.removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT)
-            exifDirectory.add(ExifTagConstants.EXIF_TAG_USER_COMMENT, tags)
-
-            outputSet
-        }
+    fun setExifUserComment(path: Path, comment: String): Mono<Path> =
+        deferIo { getExifCompatMetaData(path) }
+            .mapNotNull { it.outputSet }
+            .defaultIfEmpty(TiffOutputSet())
+            .map { outputSet ->
+                val exifDirectory = outputSet.orCreateExifDirectory
+                exifDirectory.removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT)
+                exifDirectory.add(ExifTagConstants.EXIF_TAG_USER_COMMENT, comment)
+                outputSet
+            }
             .map {
                 val dstPath = path.parent.resolve("META_UPDATED_${path.fileName}")
                 Files.newOutputStream(dstPath).use { fos ->
@@ -97,10 +96,23 @@ class FileService(
                 }
                 dstPath
             }
-            .map { Files.move(it, path, *DEFAULT_COPY_OPTIONS) }
+            .flatMap { moveFile(it, path) }
 
-    private fun <T> deferredIoFrom(block: () -> T?): Mono<T> =
-        Mono.defer { Mono.justOrEmpty(block()) }.subscribeOn(ioScheduler)
+    private fun getExifCompatMetaData(path: Path): Mono<TiffImageMetadata> = Mono.just(path)
+        .map { Imaging.getMetadata(path.toFile()) }
+        .mapNotNull {
+            when (it) {
+                is JpegImageMetadata -> it.exif
+                is TiffImageMetadata -> it
+                else -> null
+            }
+        }
+
+    private fun <T> deferIo(block: () -> Mono<T>): Mono<T> =
+        Mono.defer(block).subscribeOn(ioScheduler)
+
+    private fun <T> deferIoFrom(block: () -> T?): Mono<T> =
+        deferIo { Mono.justOrEmpty(block()) }
 
     companion object : LoggerCompanion(FileService::class) {
         private val DEFAULT_OPEN_OPTIONS: Array<StandardOpenOption> = arrayOf(
