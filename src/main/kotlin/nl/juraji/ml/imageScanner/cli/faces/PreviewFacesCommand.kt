@@ -2,6 +2,7 @@ package nl.juraji.ml.imageScanner.cli.faces
 
 import com.fasterxml.jackson.core.type.TypeReference
 import kotlinx.cli.ArgType
+import kotlinx.cli.default
 import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.ApplyTagsCommand
 import nl.juraji.ml.imageScanner.cli.AsyncCommand
@@ -34,16 +35,24 @@ class PreviewFacesCommand(
         description = "Detection result file path for faces"
     ).required()
 
+    private val sampleSize by option(
+        ArgType.Int,
+        fullName = "sample-size",
+        shortName = "s",
+        description = "Limit the amount of previews to s. Set this higher than the image count to create all previews"
+    ).default(10)
+
     override fun executeAsync(): Publisher<*> {
         val outputDir = Paths.get(outputConfiguration.dataOutputDirectory).resolve("face-previews")
         val faces = readDetectionFile(faceDetectionFile)
+        val nextInt = with(generateSequence(1, Int::inc).iterator()) { { next() } }
 
         return faces
+            .take(sampleSize.toLong(), true)
             .parallel()
             .map { (path, faces) -> outputDir.resolve(path.fileName) to drawFaceBoxes(path, faces) }
             .flatMap { (path, imgBytes) -> fileService.writeBytesTo(imgBytes, path) }
-            .doOnNext { logger.info("Created preview file $it") }
-            .doOnComplete() { logger.info("Created preview files in $outputDir") }
+            .doOnNext { logger.info("Created preview file (${nextInt()}/$sampleSize) $it") }
     }
 
     private fun drawFaceBoxes(path: Path, faces: List<Face>): ByteArray {
@@ -60,7 +69,7 @@ class PreviewFacesCommand(
         faces.forEachIndexed { index, face ->
             val (y, x, width, height) = face.rect
 
-            logger.info("Marking face of \"${face.name}\" (${index + 1}/${faces.size}) in ${path.fileName}")
+            logger.info("Marking face of \"${face.name}\" (${index + 1}/${faces.size})")
 
             graphics.drawRect(x, y, width, height)
             graphics.drawString(

@@ -3,7 +3,6 @@ package nl.juraji.ml.imageScanner
 import kotlinx.cli.ArgParser
 import kotlinx.cli.Subcommand
 import org.springframework.boot.CommandLineRunner
-import org.springframework.boot.WebApplicationType
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.runApplication
@@ -22,7 +21,5 @@ class MlImageScannerApplication(
 }
 
 fun main(args: Array<String>) {
-    runApplication<MlImageScannerApplication>(*args) {
-        webApplicationType = WebApplicationType.NONE
-    }
+    runApplication<MlImageScannerApplication>(*args)
 }

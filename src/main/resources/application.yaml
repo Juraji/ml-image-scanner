@@ -1,3 +1,8 @@
+spring:
+  main:
+    web-application-type: none
+    lazy-initialization: true
+
 output:
   data-output-directory: "./output"
 
