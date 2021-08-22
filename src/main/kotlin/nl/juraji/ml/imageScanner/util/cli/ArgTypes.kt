@@ -1,6 +1,7 @@
 package nl.juraji.ml.imageScanner.util.cli
 
 import kotlinx.cli.ArgType
+import java.net.URI
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -17,5 +18,10 @@ object ArgTypes {
     val Path = object : ArgType<Path>(true) {
         override val description = "{ Path to file }"
         override fun convert(value: kotlin.String, name: kotlin.String): Path = Paths.get(value)
+    }
+
+    val URI = object :ArgType<URI>(true) {
+        override val description: kotlin.String = "{ Web uri }"
+        override fun convert(value: kotlin.String, name: kotlin.String): URI = java.net.URI.create(value)
     }
 }

@@ -13,7 +13,6 @@ import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import java.nio.file.Path
-import java.nio.file.Paths
 import kotlin.io.path.isRegularFile
 
 @Component
@@ -31,9 +30,7 @@ class DetectTagsCommand(
     ).required()
 
     override fun executeAsync(): Publisher<*> {
-        val outputPath = Paths
-            .get(outputConfiguration.dataOutputDirectory)
-            .resolve("detected-tags.json")
+        val outputPath = outputConfiguration.dataOutputDirectory.resolve("detected-tags.json")
 
         logger.info("Detecting tags in $file...")
 

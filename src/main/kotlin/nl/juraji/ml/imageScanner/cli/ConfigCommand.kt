@@ -8,90 +8,55 @@ import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.defaultOrEmpty
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
 import reactor.core.publisher.Mono
-import java.nio.file.Path
 import java.nio.file.Paths
-
-enum class ConfigAction {
-    SET, GET
-}
 
 @Component
 class ConfigCommand(
-    private val tagBoxConfiguration: TagBoxConfiguration,
-    private val outputConfiguration: OutputConfiguration,
-    private val faceBoxConfiguration: FaceBoxConfiguration,
     private val fileService: FileService,
+    tagBoxConfiguration: TagBoxConfiguration,
+    outputConfiguration: OutputConfiguration,
+    faceBoxConfiguration: FaceBoxConfiguration,
 ) : AsyncCommand("config", "Set configuration options") {
-    private val action by argument(
-        ArgTypes.Choice<ConfigAction>(),
-        "action",
-        "Use \"get\" to print current configuration, use \"set\" to update configuration"
-    )
-
     private val outputDirectory by option(
-        ArgTypes.String,
-        "output-directory",
+        ArgTypes.Path,
+        fullName = "output-directory",
         description = "Set the target output directory for detection data"
     ).default(outputConfiguration.dataOutputDirectory)
 
     private val tagBoxEndpoint by option(
-        ArgTypes.String,
-        "tag-box.endpoint",
+        ArgTypes.URI,
+        fullName = "tag-box.endpoint",
         description = "Http endpoint for Tag Box"
     ).default(tagBoxConfiguration.endpoint)
     private val tagBoxStateFile by option(
-        ArgTypes.String,
-        "tag-box.state-file",
+        ArgTypes.Path,
+        fullName = "tag-box.state-file",
         description = "Target file to persist Tag Box state to"
     ).default(tagBoxConfiguration.stateFile)
     private val tagBoxBlacklist by option(
         ArgTypes.String,
-        "tag-box.blacklist",
+        fullName = "tag-box.blacklist",
         description = "Set blacklist for tags (comma separated), these tags will not be proposed"
-    ).delimiter(",")
+    ).delimiter(",").defaultOrEmpty(tagBoxConfiguration.blacklist)
 
     private val faceBoxEndpoint by option(
-        ArgTypes.String,
-        "face-box.endpoint",
+        ArgTypes.URI,
+        fullName = "face-box.endpoint",
         description = "Http endpoint for Face Box"
     ).default(faceBoxConfiguration.endpoint)
     private val faceBoxStateFile by option(
-        ArgTypes.String,
-        "face-box.state-file",
+        ArgTypes.Path,
+        fullName = "face-box.state-file",
         description = "Target file to persist Face Box state to"
     ).default(faceBoxConfiguration.stateFile)
 
     override fun executeAsync(): Publisher<*> {
-        return when (action) {
-            ConfigAction.GET -> printConfiguration()
-            ConfigAction.SET -> updateConfiguration()
-        }
-    }
-
-    private fun printConfiguration(): Mono<Unit> {
-
-        logger.info(
-            """
-            --
-            Current configuration:
-                output-directory    = ${outputConfiguration.dataOutputDirectory}
-                tag-box.endpoint    = ${tagBoxConfiguration.endpoint}
-                tag-box.state-file  = ${tagBoxConfiguration.stateFile}
-                tag-box.blacklist   = ${tagBoxConfiguration.blacklist}
-                face-box.endpoint   = ${faceBoxConfiguration.endpoint}
-                face-box.state-file = ${faceBoxConfiguration.stateFile}
-            """.trimIndent()
-        )
-
-        return Mono.empty()
-    }
-
-    private fun updateConfiguration(): Mono<Path> {
         val yamlOpts = DumperOptions().apply {
             isPrettyFlow = true
             defaultFlowStyle = DumperOptions.FlowStyle.BLOCK
@@ -105,7 +70,7 @@ class ConfigCommand(
                 "tag-box" to mapOf(
                     "endpoint" to tagBoxEndpoint,
                     "state-file" to tagBoxStateFile,
-                    "blacklist" to tagBoxBlacklist.ifEmpty { tagBoxConfiguration.blacklist }
+                    "blacklist" to tagBoxBlacklist
                 ),
                 "face-box" to mapOf(
                     "endpoint" to faceBoxEndpoint,

@@ -43,7 +43,7 @@ class PreviewFacesCommand(
     ).default(10)
 
     override fun executeAsync(): Publisher<*> {
-        val outputDir = Paths.get(outputConfiguration.dataOutputDirectory).resolve("face-previews")
+        val outputDir = outputConfiguration.dataOutputDirectory.resolve("face-previews")
         val faces = readDetectionFile(faceDetectionFile)
         val nextInt = with(generateSequence(1, Int::inc).iterator()) { { next() } }
 

@@ -16,14 +16,13 @@ import org.springframework.web.reactive.function.client.bodyToFlux
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.nio.file.Path
-import java.nio.file.Paths
 
 abstract class MachineBoxService(
     private val fileService: FileService,
     private val machineBoxWebClient: WebClient,
     configuration: MachineBoxConfiguration
 ) {
-    private val stateFilePath: Path = Paths.get(configuration.stateFile)
+    private val stateFilePath: Path = configuration.stateFile
 
     protected fun <R> withManagedStateClient(supplier: WebClient.() -> Mono<R>): Mono<R> =
         withManagedStateClient(true, supplier)
