@@ -4,9 +4,9 @@ import reactor.core.publisher.Mono
 
 // Boolean based path switching
 fun <T : Any, R> Mono<T>.iif(
-    predicate: (T) -> Boolean,
     onTrue: Mono<R>,
     onFalse: Mono<R>,
+    predicate: (T) -> Boolean,
 ): Mono<R> = flatMap {
     if (predicate(it)) onTrue
     else onFalse
@@ -15,4 +15,4 @@ fun <T : Any, R> Mono<T>.iif(
 fun <R> Mono<Boolean>.iif(
     onTrue: Mono<R>,
     onFalse: Mono<R>,
-) = iif({ it }, onTrue, onFalse)
+) = iif(onTrue, onFalse) { it }

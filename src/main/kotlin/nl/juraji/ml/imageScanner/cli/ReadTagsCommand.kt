@@ -19,7 +19,7 @@ class ReadTagsCommand(
 
     override fun executeAsync(): Publisher<*> {
         return Mono.justOrEmpty(filePath)
-            .map(fileService::readExifUserComment)
+            .flatMap(fileService::readExifUserComment)
             .doOnNext { logger.info("Found tag data: $it") }
     }
 

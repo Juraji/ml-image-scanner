@@ -1,10 +1,10 @@
 package nl.juraji.ml.imageScanner.configuration
 
 import nl.juraji.ml.imageScanner.services.FileService
-import nl.juraji.ml.imageScanner.util.blockAndCatch
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.ConstructorBinding
+import reactor.core.publisher.Mono
 import java.nio.file.Path
 import javax.annotation.PostConstruct
 
@@ -18,6 +18,8 @@ data class OutputConfiguration(
 
     @PostConstruct
     fun init() {
-        fileService.createDirectories(dataOutputDirectory).blockAndCatch()
+        fileService
+            .createDirectories(dataOutputDirectory)
+            .runCatching(Mono<*>::block)
     }
 }

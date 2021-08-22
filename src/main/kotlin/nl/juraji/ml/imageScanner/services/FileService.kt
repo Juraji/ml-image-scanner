@@ -3,6 +3,7 @@ package nl.juraji.ml.imageScanner.services
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.iif
 import org.apache.commons.imaging.Imaging
 import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata
 import org.apache.commons.imaging.formats.jpeg.exif.ExifRewriter
@@ -12,6 +13,7 @@ import org.apache.commons.imaging.formats.tiff.write.TiffOutputSet
 import org.reactivestreams.Publisher
 import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.core.io.buffer.DataBufferUtils
+import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -78,28 +80,48 @@ class FileService(
     fun readExifUserComment(path: Path): Mono<String> =
         deferIo { getExifCompatMetaData(path) }
             .mapNotNull { it.getFieldValue(ExifTagConstants.EXIF_TAG_USER_COMMENT) }
+            .defaultIfEmpty("NO META DATA")
 
-    fun setExifUserComment(path: Path, comment: String): Mono<Path> =
-        deferIo { getExifCompatMetaData(path) }
-            .mapNotNull { it.outputSet }
-            .defaultIfEmpty(TiffOutputSet())
+    fun setExifUserComment(path: Path, comment: String): Mono<Path> {
+        val onImageSupported = deferIo { getExifCompatMetaData(path) }
+            .mapNotNull { it.outputSet ?: TiffOutputSet() }
             .map { outputSet ->
-                val exifDirectory = outputSet.orCreateExifDirectory
-                exifDirectory.removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT)
-                exifDirectory.add(ExifTagConstants.EXIF_TAG_USER_COMMENT, comment)
-                outputSet
+                outputSet.apply {
+                    with(orCreateExifDirectory) {
+                        removeField(ExifTagConstants.EXIF_TAG_USER_COMMENT)
+                        add(ExifTagConstants.EXIF_TAG_USER_COMMENT, comment)
+                    }
+                }
             }
             .map {
-                val dstPath = path.parent.resolve("META_UPDATED_${path.fileName}")
-                Files.newOutputStream(dstPath).use { fos ->
-                    ExifRewriter().updateExifMetadataLossless(path.toFile(), fos, it)
+                path.parent.resolve("META_UPDATED_${path.fileName}").apply {
+                    Files.newOutputStream(this).use { fos ->
+                        ExifRewriter().updateExifMetadataLossless(path.toFile(), fos, it)
+                    }
                 }
-                dstPath
             }
             .flatMap { moveFile(it, path) }
 
+        val onImageNotSupported: Mono<Path> = Mono.defer {
+            logger.warn("Meta data not supported for file: $path")
+            Mono.empty()
+        }
+
+        return Mono.just(path)
+            .flatMap(this::probeContentType)
+            .iif(onImageSupported, onImageNotSupported) { it == MediaType.IMAGE_JPEG_VALUE }
+    }
+
+    fun probeContentType(path: Path): Mono<String> =
+        deferIoFrom { Files.probeContentType(path) }
+
     private fun getExifCompatMetaData(path: Path): Mono<TiffImageMetadata> = Mono.just(path)
-        .map { Imaging.getMetadata(path.toFile()) }
+        .map { it to it.fileName.toString() }
+        .mapNotNull { (p, fName) ->
+            Files.newInputStream(p).use { fis ->
+                Imaging.getMetadata(fis, fName)
+            }
+        }
         .mapNotNull {
             when (it) {
                 is JpegImageMetadata -> it.exif

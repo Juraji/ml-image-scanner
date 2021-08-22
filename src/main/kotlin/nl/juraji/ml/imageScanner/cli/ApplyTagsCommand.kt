@@ -18,12 +18,12 @@ class ApplyTagsCommand(
     private val fileService: FileService
 ) : AsyncCommand("apply", "Apply tags and faces from detection results") {
     private val tagDetectionFile by pathOption(
-        fullName = "tags-file",
+        fullName = "tags",
         shortName = "t",
         description = "Detection result file path for tags"
     )
     private val faceDetectionFile by pathOption(
-        fullName = "faces-file",
+        fullName = "faces",
         shortName = "f",
         description = "Detection result file path for faces"
     )
