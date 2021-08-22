@@ -4,7 +4,7 @@ import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.services.FaceBoxService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.stringOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 
@@ -12,8 +12,7 @@ import org.springframework.stereotype.Component
 class DeleteFaceCommand(
     private val faceBoxService: FaceBoxService
 ) : AsyncCommand("delete-face", "Delete face from model") {
-    private val id by option(
-        type = ArgTypes.String,
+    private val id by stringOption(
         fullName = "id",
         description = "Id/filename with which the face was taught"
     ).required()

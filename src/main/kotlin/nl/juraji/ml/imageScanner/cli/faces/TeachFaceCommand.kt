@@ -4,7 +4,8 @@ import kotlinx.cli.required
 import nl.juraji.ml.imageScanner.cli.AsyncCommand
 import nl.juraji.ml.imageScanner.services.FaceBoxService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.pathOption
+import nl.juraji.ml.imageScanner.util.cli.stringOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 
@@ -12,15 +13,13 @@ import org.springframework.stereotype.Component
 class TeachFaceCommand(
     private val faceBoxService: FaceBoxService,
 ) : AsyncCommand("teach-face", "Teach a new face") {
-    private val faceName by option(
-        type = ArgTypes.String,
+    private val faceName by stringOption(
         fullName = "name",
         shortName = "n",
         description = "Name of face"
     ).required()
 
-    private val file by option(
-        type = ArgTypes.Path,
+    private val file by pathOption(
         fullName = "file",
         shortName = "f",
         description = "Path to image file of face"

@@ -7,8 +7,10 @@ import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
 import nl.juraji.ml.imageScanner.util.cli.defaultOrEmpty
+import nl.juraji.ml.imageScanner.util.cli.pathOption
+import nl.juraji.ml.imageScanner.util.cli.stringOption
+import nl.juraji.ml.imageScanner.util.cli.uriOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import org.yaml.snakeyaml.DumperOptions
@@ -23,35 +25,29 @@ class ConfigCommand(
     outputConfiguration: OutputConfiguration,
     faceBoxConfiguration: FaceBoxConfiguration,
 ) : AsyncCommand("config", "Set configuration options") {
-    private val outputDirectory by option(
-        ArgTypes.Path,
+    private val outputDirectory by pathOption(
         fullName = "output-directory",
         description = "Set the target output directory for detection data"
     ).default(outputConfiguration.dataOutputDirectory)
 
-    private val tagBoxEndpoint by option(
-        ArgTypes.URI,
+    private val tagBoxEndpoint by uriOption(
         fullName = "tag-box.endpoint",
         description = "Http endpoint for Tag Box"
     ).default(tagBoxConfiguration.endpoint)
-    private val tagBoxStateFile by option(
-        ArgTypes.Path,
+    private val tagBoxStateFile by pathOption(
         fullName = "tag-box.state-file",
         description = "Target file to persist Tag Box state to"
     ).default(tagBoxConfiguration.stateFile)
-    private val tagBoxBlacklist by option(
-        ArgTypes.String,
+    private val tagBoxBlacklist by stringOption(
         fullName = "tag-box.blacklist",
         description = "Set blacklist for tags (comma separated), these tags will not be proposed"
     ).delimiter(",").defaultOrEmpty(tagBoxConfiguration.blacklist)
 
-    private val faceBoxEndpoint by option(
-        ArgTypes.URI,
+    private val faceBoxEndpoint by uriOption(
         fullName = "face-box.endpoint",
         description = "Http endpoint for Face Box"
     ).default(faceBoxConfiguration.endpoint)
-    private val faceBoxStateFile by option(
-        ArgTypes.Path,
+    private val faceBoxStateFile by pathOption(
         fullName = "face-box.state-file",
         description = "Target file to persist Face Box state to"
     ).default(faceBoxConfiguration.stateFile)

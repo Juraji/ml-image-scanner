@@ -2,7 +2,7 @@ package nl.juraji.ml.imageScanner.cli
 
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
@@ -11,8 +11,7 @@ import reactor.core.publisher.Mono
 class ReadTagsCommand(
     private val fileService: FileService
 ) : AsyncCommand("read-tags", "Read tags from a file, applied by apply-tags") {
-    val filePath by option(
-        ArgTypes.Path,
+    val filePath by pathOption(
         fullName = "file",
         shortName = "f",
         description = "The file to read the tags from"

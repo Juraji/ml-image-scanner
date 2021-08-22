@@ -8,7 +8,7 @@ import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FaceBoxService
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import java.nio.file.Path
@@ -20,8 +20,7 @@ class DetectFacesCommand(
     private val fileService: FileService,
     private val faceBoxService: FaceBoxService,
 ) : AsyncCommand("detect-faces", "Detect faces in an image") {
-    private val file by option(
-        type = ArgTypes.Path,
+    private val file by pathOption(
         fullName = "file",
         shortName = "f",
         description = "Path to image file or folder with images to detect"

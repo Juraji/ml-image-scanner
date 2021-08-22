@@ -9,7 +9,8 @@ import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.ArgTypes
+import nl.juraji.ml.imageScanner.util.cli.intOption
+import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
@@ -28,15 +29,13 @@ class PreviewFacesCommand(
     private val fileService: FileService,
     private val outputConfiguration: OutputConfiguration,
 ) : AsyncCommand("preview-faces", "Preview face detections using the actual images") {
-    private val faceDetectionFile by option(
-        ArgTypes.Path,
+    private val faceDetectionFile by pathOption(
         fullName = "faces-file",
         shortName = "f",
         description = "Detection result file path for faces"
     ).required()
 
-    private val sampleSize by option(
-        ArgTypes.Int,
+    private val sampleSize by intOption(
         fullName = "sample-size",
         shortName = "s",
         description = "Limit the amount of previews to s. Set this higher than the image count to create all previews"

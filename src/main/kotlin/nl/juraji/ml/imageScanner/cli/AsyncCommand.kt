@@ -2,8 +2,6 @@ package nl.juraji.ml.imageScanner.cli
 
 import kotlinx.cli.Subcommand
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.blockAndCatch
-import nl.juraji.ml.imageScanner.util.blockLastAndCatch
 import org.reactivestreams.Publisher
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
@@ -16,9 +14,9 @@ abstract class AsyncCommand(
 
     final override fun execute() {
         val result = when (val publisher = executeAsync()) {
-            is Mono -> publisher.blockAndCatch()
-            is Flux -> publisher.blockLastAndCatch()
-            is ParallelFlux -> publisher.blockLastAndCatch()
+            is Mono -> publisher.runCatching(Mono<*>::block)
+            is Flux -> publisher.runCatching(Flux<*>::blockLast)
+            is ParallelFlux -> publisher.sequential().runCatching(Flux<*>::blockLast)
             else -> throw UnsupportedOperationException("Publisher of type ${publisher.javaClass} is not supported!")
         }
 

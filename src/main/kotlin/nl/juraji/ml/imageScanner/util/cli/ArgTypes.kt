@@ -1,26 +1,46 @@
 package nl.juraji.ml.imageScanner.util.cli
 
+import kotlinx.cli.ArgParser
 import kotlinx.cli.ArgType
 import java.net.URI
 import java.nio.file.Path
 import java.nio.file.Paths
 
-object ArgTypes {
-    val Boolean = ArgType.Boolean
-    val String = ArgType.String
-    val Int = ArgType.Int
-    val Double = ArgType.Double
-    inline fun <reified T : Enum<T>> Choice(
-        noinline toVariant: (String) -> T = { s -> enumValues<T>().first { it.toString().equals(s, true) } },
-        noinline variantToString: (T) -> String = { it.toString() }
-    ) = ArgType.Choice(enumValues<T>().toList(), toVariant, variantToString)
+fun ArgParser.stringOption(
+    fullName: String? = null,
+    shortName: String? = null,
+    description: String? = null,
+    deprecatedWarning: String? = null
+) = option(ArgType.String, fullName, shortName, description, deprecatedWarning)
 
+fun ArgParser.intOption(
+    fullName: String? = null,
+    shortName: String? = null,
+    description: String? = null,
+    deprecatedWarning: String? = null
+) = option(ArgType.Int, fullName, shortName, description, deprecatedWarning)
+
+fun ArgParser.pathOption(
+    fullName: String? = null,
+    shortName: String? = null,
+    description: String? = null,
+    deprecatedWarning: String? = null
+) = option(ArgTypes.Path, fullName, shortName, description, deprecatedWarning)
+
+fun ArgParser.uriOption(
+    fullName: String? = null,
+    shortName: String? = null,
+    description: String? = null,
+    deprecatedWarning: String? = null
+) = option(ArgTypes.URI, fullName, shortName, description, deprecatedWarning)
+
+private object ArgTypes {
     val Path = object : ArgType<Path>(true) {
-        override val description = "{ Path to file }"
+        override val description = "{ File path }"
         override fun convert(value: kotlin.String, name: kotlin.String): Path = Paths.get(value)
     }
 
-    val URI = object :ArgType<URI>(true) {
+    val URI = object : ArgType<URI>(true) {
         override val description: kotlin.String = "{ Web uri }"
         override fun convert(value: kotlin.String, name: kotlin.String): URI = java.net.URI.create(value)
     }
