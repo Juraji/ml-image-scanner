@@ -32,10 +32,3 @@ spec:
                 name: facebox
                 port:
                   name: http
-          - path: "/"
-            pathType: Prefix
-            backend:
-              service:
-                name: facebox
-                port:
-                  name: http

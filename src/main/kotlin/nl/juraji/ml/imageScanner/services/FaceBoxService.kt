@@ -3,6 +3,7 @@ package nl.juraji.ml.imageScanner.services
 import nl.juraji.ml.imageScanner.configuration.FaceBoxConfiguration
 import nl.juraji.ml.imageScanner.model.face.DetectFacesResult
 import nl.juraji.ml.imageScanner.model.face.Face
+import nl.juraji.ml.imageScanner.model.face.SimilarFacesResult
 import nl.juraji.ml.imageScanner.util.filePart
 import nl.juraji.ml.imageScanner.util.multiPartBody
 import org.springframework.beans.factory.annotation.Qualifier
@@ -26,9 +27,7 @@ class FaceBoxService(
         post()
             .uri("/check")
             .contentType(MediaType.MULTIPART_FORM_DATA)
-            .multiPartBody {
-                filePart("file", file)
-            }
+            .multiPartBody { filePart("file", file) }
             .retrieve()
             .bodyToMono<DetectFacesResult>()
     }
@@ -54,6 +53,27 @@ class FaceBoxService(
             .retrieve()
             .bodyToMono<Unit>()
             .thenReturn(faceResult)
+    }
+
+    fun similarFaces(file: Path): Mono<SimilarFacesResult> = withManagedStateClient {
+        post()
+            .uri("/similars")
+            .contentType(MediaType.MULTIPART_FORM_DATA)
+            .multiPartBody { filePart("file", file) }
+            .retrieve()
+            .bodyToMono<SimilarFacesResult>()
+            .map { result ->
+                result.copy(faces = result.faces.map { group ->
+                    group.copy(
+                        similarFaces = group.similarFaces.map { face ->
+                            face.copy(
+                                matched = true,
+                                rect = group.rect
+                            )
+                        }
+                    )
+                })
+            }
     }
 
     fun delete(id: String): Mono<Unit> = withManagedStatePersistingClient {
