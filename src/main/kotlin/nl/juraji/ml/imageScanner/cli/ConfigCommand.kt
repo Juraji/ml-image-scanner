@@ -60,17 +60,17 @@ class ConfigCommand(
 
         val configMap = mapOf(
             "output" to mapOf(
-                "data-output-directory" to outputDirectory
+                "data-output-directory" to "$outputDirectory"
             ),
             "machine-box" to mapOf(
                 "tag-box" to mapOf(
-                    "endpoint" to tagBoxEndpoint,
-                    "state-file" to tagBoxStateFile,
+                    "endpoint" to "$tagBoxEndpoint",
+                    "state-file" to "$tagBoxStateFile",
                     "blacklist" to tagBoxBlacklist
                 ),
                 "face-box" to mapOf(
-                    "endpoint" to faceBoxEndpoint,
-                    "state-file" to faceBoxStateFile
+                    "endpoint" to "$faceBoxEndpoint",
+                    "state-file" to "$faceBoxStateFile"
                 )
             )
         )
