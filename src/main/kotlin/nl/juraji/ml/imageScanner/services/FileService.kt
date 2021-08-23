@@ -98,8 +98,8 @@ class FileService(
             }
             .map { outputSet ->
                 source.parent.resolve("META_UPDATED_${source.fileName}").apply {
-                    withFIS(source) { fis ->
-                        withFOS(this) { fos ->
+                    usingFIS(source) { fis ->
+                        usingFOS(this) { fos ->
                             with(ExifRewriter()) {
                                 if (force) updateExifMetadataLossy(fis, fos, outputSet)
                                 else updateExifMetadataLossless(fis, fos, outputSet)
@@ -126,7 +126,7 @@ class FileService(
 
     private fun getExifCompatMetaData(path: Path): Mono<TiffImageMetadata> = Mono.just(path)
         .map { it to it.fileName.toString() }
-        .mapNotNull { (p, fName) -> withFIS(p) { Imaging.getMetadata(it, fName) } }
+        .mapNotNull { (p, fName) -> usingFIS(p) { Imaging.getMetadata(it, fName) } }
         .mapNotNull {
             when (it) {
                 is JpegImageMetadata -> it.exif
@@ -135,10 +135,10 @@ class FileService(
             }
         }
 
-    private fun <T : Any?> withFIS(path: Path, block: (InputStream) -> T) =
+    private fun <T : Any?> usingFIS(path: Path, block: (InputStream) -> T) =
         Files.newInputStream(path).use(block)
 
-    private fun withFOS(path: Path, block: (OutputStream) -> Unit) =
+    private fun usingFOS(path: Path, block: (OutputStream) -> Unit) =
         Files.newOutputStream(path).use(block)
 
     private fun <T> deferIo(block: () -> Mono<T>): Mono<T> =

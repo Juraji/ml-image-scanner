@@ -14,3 +14,9 @@ machine-box:
   face-box:
     endpoint: "http://localhost:80/facebox"
     state-file: "./config/facebox.state"
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %logger{0}: %msg%n"
+  level:
+    nl.juraji.ml.imageScanner.MlImageScannerApplicationKt: ERROR
