@@ -8,6 +8,7 @@ import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import nl.juraji.ml.imageScanner.util.cli.booleanOption
 import nl.juraji.ml.imageScanner.util.cli.pathOption
+import nl.juraji.ml.imageScanner.util.unique
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
@@ -33,26 +34,43 @@ class ApplyTagsCommand(
         fullName = "force",
         description = "Force writing tags (helps with images that will not update)"
     ).default(false)
+    private val append by booleanOption(
+        fullName = "append",
+        description = "Append new tags to exising tags/user comment"
+    ).default(false)
 
     override fun executeAsync(): Publisher<*> {
         val tagsFileTypeReference = object : TypeReference<Map<String, List<Tag>>>() {}
         val facesFileTypeReference = object : TypeReference<Map<String, List<Face>>>() {}
 
-        val tags = readDetectionFile(tagDetectionFile, tagsFileTypeReference)
+        val detectedTags = readDetectionFile(tagDetectionFile, tagsFileTypeReference)
             .map { (path, tags) -> Paths.get(path) to tags.map(Tag::tag) }
 
-        val faces = readDetectionFile(faceDetectionFile, facesFileTypeReference)
+        val detectedFaces = readDetectionFile(faceDetectionFile, facesFileTypeReference)
             .map { (path, faces) -> path to faces.filter { it.matched } }
             .map { (path, faces) -> Paths.get(path) to faces.map(Face::name) }
             .filter { (_, faces) -> faces.isNotEmpty() }
 
-        return Flux.concat(tags, faces)
-            .reduce<Map<Path, List<String>>>(emptyMap()) { prev, (path, list) ->
-                val mergedList = (prev[path] ?: emptyList()) + list
-                prev + (path to mergedList)
+        val tagAccumulator: (Map<Path, List<String>>, Pair<Path, List<String>>) -> Map<Path, List<String>> =
+            { acc, (path, tags) -> acc + (path to ((acc[path] ?: emptyList()) + tags)) }
+
+        val appendMap: (Map.Entry<Path, List<String>>) -> Mono<Pair<Path, List<String>>> =
+            if (append) { (path, tags) ->
+                fileService
+                    .readExifUserComment(path)
+                    .map { it.split(',') }
+                    .map { path to (it + tags).unique() }
+                    .defaultIfEmpty(path to tags)
             }
+            else { (path, tags) -> Mono.just(path to tags) }
+
+        logger.info("Setting tags as exif user comments, with force: $force and append: $append")
+
+        return Flux.concat(detectedFaces, detectedTags)
+            .reduce(emptyMap(), tagAccumulator)
             .flatMapMany { Flux.fromIterable(it.entries) }
-            .map { (path, tList) -> path to tList.joinToString(",") }
+            .flatMap(appendMap)
+            .map { (path, tags) -> path to tags.joinToString(",") }
             .doOnNext { (p, t) -> logger.info("Tags for $p: $t") }
             .flatMap { (path, tags) -> fileService.setExifUserComment(path, tags, force) }
             .doOnComplete { logger.info("Tags merged and applied!") }
