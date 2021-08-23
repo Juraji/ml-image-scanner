@@ -2,6 +2,7 @@ package nl.juraji.ml.imageScanner.services
 
 import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
 import nl.juraji.ml.imageScanner.model.tag.RenameTagRequest
+import nl.juraji.ml.imageScanner.model.tag.SimilarImagesResult
 import nl.juraji.ml.imageScanner.model.tag.Tag
 import nl.juraji.ml.imageScanner.model.tag.TagResult
 import nl.juraji.ml.imageScanner.util.filePart
@@ -46,6 +47,17 @@ class TagBoxService(
             .retrieve()
             .bodyToMono<Unit>()
             .thenReturn(Tag(id, tag, 1.0))
+    }
+
+    fun similarImages(file: Path): Mono<SimilarImagesResult> = withManagedStateClient {
+        post()
+            .uri("/similar")
+            .contentType(MediaType.MULTIPART_FORM_DATA)
+            .multiPartBody {
+                filePart("file", file)
+            }
+            .retrieve()
+            .bodyToMono()
     }
 
     fun rename(tagId: String, newName: String): Mono<Unit> = withManagedStatePersistingClient {

@@ -47,8 +47,7 @@ class ApplyTagsCommand(
             .map { (path, tags) -> Paths.get(path) to tags.map(Tag::tag) }
 
         val detectedFaces = readDetectionFile(faceDetectionFile, facesFileTypeReference)
-            .map { (path, faces) -> path to faces.filter { it.matched } }
-            .map { (path, faces) -> Paths.get(path) to faces.map(Face::name) }
+            .map { (path, faces) -> Paths.get(path) to faces.filter(Face::matched).map(Face::name) }
             .filter { (_, faces) -> faces.isNotEmpty() }
 
         val tagAccumulator: (Map<Path, List<String>>, Pair<Path, List<String>>) -> Map<Path, List<String>> =
