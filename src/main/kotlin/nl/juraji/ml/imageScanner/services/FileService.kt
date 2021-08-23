@@ -19,6 +19,9 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Scheduler
 import reactor.core.scheduler.Schedulers
+import reactor.kotlin.core.publisher.switchIfEmpty
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.*
 
 @Service
@@ -82,9 +85,10 @@ class FileService(
             .mapNotNull { it.getFieldValue(ExifTagConstants.EXIF_TAG_USER_COMMENT) }
             .defaultIfEmpty("NO META DATA")
 
-    fun setExifUserComment(path: Path, comment: String): Mono<Path> {
-        val onImageSupported = deferIo { getExifCompatMetaData(path) }
-            .mapNotNull { it.outputSet ?: TiffOutputSet() }
+    fun setExifUserComment(source: Path, comment: String): Mono<Path> {
+        val onImageSupported = deferIo { getExifCompatMetaData(source) }
+            .mapNotNull { it.outputSet }
+            .switchIfEmpty { Mono.just(TiffOutputSet()) }
             .map { outputSet ->
                 outputSet.apply {
                     with(orCreateExifDirectory) {
@@ -93,21 +97,24 @@ class FileService(
                     }
                 }
             }
-            .map {
-                path.parent.resolve("META_UPDATED_${path.fileName}").apply {
-                    Files.newOutputStream(this).use { fos ->
-                        ExifRewriter().updateExifMetadataLossless(path.toFile(), fos, it)
+            .map { outputSet ->
+                source.parent.resolve("META_UPDATED_${source.fileName}").apply {
+                    withFIS(source) { fis ->
+                        withFOS(this) { fos ->
+                            ExifRewriter().updateExifMetadataLossy(fis, fos, outputSet)
+                        }
                     }
                 }
             }
-            .flatMap { moveFile(it, path) }
+            .flatMap { moveFile(it, source) }
+            .onErrorContinue { e, _ -> logger.error("Could not write meta data to file (${e.message}): $source") }
 
         val onImageNotSupported: Mono<Path> = Mono.defer {
-            logger.warn("Meta data not supported for file: $path")
+            logger.warn("Meta data not supported for file: $source")
             Mono.empty()
         }
 
-        return Mono.just(path)
+        return Mono.just(source)
             .flatMap(this::probeContentType)
             .iif(onImageSupported, onImageNotSupported) { it == MediaType.IMAGE_JPEG_VALUE }
     }
@@ -117,11 +124,7 @@ class FileService(
 
     private fun getExifCompatMetaData(path: Path): Mono<TiffImageMetadata> = Mono.just(path)
         .map { it to it.fileName.toString() }
-        .mapNotNull { (p, fName) ->
-            Files.newInputStream(p).use { fis ->
-                Imaging.getMetadata(fis, fName)
-            }
-        }
+        .mapNotNull { (p, fName) -> withFIS(p) { Imaging.getMetadata(it, fName) } }
         .mapNotNull {
             when (it) {
                 is JpegImageMetadata -> it.exif
@@ -129,6 +132,12 @@ class FileService(
                 else -> null
             }
         }
+
+    private fun <T : Any?> withFIS(path: Path, block: (InputStream) -> T) =
+        Files.newInputStream(path).use(block)
+
+    private fun withFOS(path: Path, block: (OutputStream) -> Unit) =
+        Files.newOutputStream(path).use(block)
 
     private fun <T> deferIo(block: () -> Mono<T>): Mono<T> =
         Mono.defer(block).subscribeOn(ioScheduler)

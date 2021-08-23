@@ -27,6 +27,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlinx:kotlinx-cli:0.3.2")
+    implementation("io.projectreactor.kotlin:reactor-kotlin-extensions:1.1.4")
     implementation("org.apache.commons:commons-imaging:1.0-alpha2")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
