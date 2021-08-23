@@ -1,61 +1,36 @@
 package nl.juraji.ml.imageScanner.cli.tags
 
-import kotlinx.cli.required
-import nl.juraji.ml.imageScanner.cli.AsyncCommand
+import nl.juraji.ml.imageScanner.cli.AbstractDetectionCommand
 import nl.juraji.ml.imageScanner.configuration.OutputConfiguration
 import nl.juraji.ml.imageScanner.configuration.TagBoxConfiguration
 import nl.juraji.ml.imageScanner.model.tag.Tag
 import nl.juraji.ml.imageScanner.model.tag.TagResult
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.services.TagBoxService
-import nl.juraji.ml.imageScanner.util.LoggerCompanion
-import nl.juraji.ml.imageScanner.util.cli.pathOption
-import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
-import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.nio.file.Path
-import kotlin.io.path.isRegularFile
 
 @Component
 class DetectTagsCommand(
-    private val outputConfiguration: OutputConfiguration,
     private val tagBoxConfiguration: TagBoxConfiguration,
     private val tagBoxService: TagBoxService,
-    private val fileService: FileService,
-) : AsyncCommand("detect-tags", "Detect tags in an image") {
-    private val file by pathOption(
-        fullName = "file",
-        shortName = "f",
-        description = "Path to image file or folder with images to detect"
-    ).required()
+    outputConfiguration: OutputConfiguration,
+    fileService: FileService,
+) : AbstractDetectionCommand<Tag>(
+    "detect-tags",
+    "Detect tags in an image",
+    outputConfiguration,
+    fileService
+) {
+    override fun logOnBoot(): String = "Start detecting tags (recursively) in $inputFile..."
+    override fun logOnNext(path: Path): String = "Detecting tags in $path"
+    override fun logOnDetected(path: Path, items: List<Tag>): String = "Detected ${items.size} in $path"
+    override fun logOnComplete(): String = "Tag detection completed, check $outputFile for the results."
 
-    override fun executeAsync(): Publisher<*> {
-        val outputPath = outputConfiguration.resolve(OUTPUT_FILE_NAME)
-        logger.info("Detecting tags (recursively) in $file...")
-
-        val files =
-            if (file.isRegularFile()) Flux.just(file)
-            else this.fileService.walkDirectory(file)
-                .filter { it.isRegularFile() }
-
-        return files
-            .parallel()
-            .doOnNext { logger.info("Detecting tags in \"$it\"...") }
-            .flatMap { p ->
-                tagBoxService.detect(p)
-                    .onErrorContinue { _, _ -> TagResult(emptyList(), emptyList()) }
-                    .map { it.tags + it.customTags }
-                    .map { p to it.filter { (_, tag) -> !tagBoxConfiguration.blacklist.contains(tag) } }
-            }
-            .doOnNext { (p, tags) -> logger.info("Detected ${tags.size} tags in \"$p\"") }
-            .sequential()
-            .reduce<Map<Path, List<Tag>>>(emptyMap()) { prev, next -> prev + next }
-            .flatMap { fileService.serialize(it) }
-            .flatMap { fileService.writeBytesTo(it, outputPath) }
-            .doOnSuccess { logger.info("Tag detection completed, check $it for the results.") }
-    }
-
-    companion object : LoggerCompanion(DetectTagsCommand::class) {
-        private const val OUTPUT_FILE_NAME = "detected-tags.json"
-    }
+    override fun getItemsForPath(path: Path): Mono<List<Tag>> =
+        tagBoxService.detect(path)
+            .onErrorContinue { _, _ -> TagResult(emptyList(), emptyList()) }
+            .map { it.tags + it.customTags }
+            .map { it.filter { (_, tag) -> !tagBoxConfiguration.blacklist.contains(tag) } }
 }
