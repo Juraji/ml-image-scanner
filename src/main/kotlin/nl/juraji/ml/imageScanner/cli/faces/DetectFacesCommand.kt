@@ -11,6 +11,7 @@ import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Flux
 import java.nio.file.Path
 import kotlin.io.path.isRegularFile
 
@@ -27,11 +28,15 @@ class DetectFacesCommand(
     ).required()
 
     override fun executeAsync(): Publisher<*> {
-        val outputPath = outputConfiguration.dataOutputDirectory.resolve("detected-faces.json")
+        val outputPath = outputConfiguration.resolve("detected-faces.json")
+        logger.info("Detecting faces (recursively) in $file...")
 
-        logger.info("Detecting faces recursively in $file file(s)...")
+        val files =
+            if (file.isRegularFile()) Flux.just(file)
+            else this.fileService.walkDirectory(file)
+                .filter { it.isRegularFile() }
 
-        return this.fileService.walkDirectory(file)
+        return files
             .parallel()
             .filter { it.isRegularFile() }
             .flatMap { p ->

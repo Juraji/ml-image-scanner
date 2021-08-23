@@ -12,6 +12,7 @@ import nl.juraji.ml.imageScanner.util.LoggerCompanion
 import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
+import reactor.core.publisher.Flux
 import java.nio.file.Path
 import kotlin.io.path.isRegularFile
 
@@ -29,12 +30,15 @@ class DetectTagsCommand(
     ).required()
 
     override fun executeAsync(): Publisher<*> {
-        val outputPath = outputConfiguration.dataOutputDirectory.resolve("detected-tags.json")
+        val outputPath = outputConfiguration.resolve(OUTPUT_FILE_NAME)
+        logger.info("Detecting tags (recursively) in $file...")
 
-        logger.info("Detecting tags in $file...")
+        val files =
+            if (file.isRegularFile()) Flux.just(file)
+            else this.fileService.walkDirectory(file)
+                .filter { it.isRegularFile() }
 
-        return this.fileService.walkDirectory(file)
-            .filter { it.isRegularFile() }
+        return files
             .parallel()
             .doOnNext { logger.info("Detecting tags in \"$it\"...") }
             .flatMap { p ->
@@ -51,5 +55,7 @@ class DetectTagsCommand(
             .doOnSuccess { logger.info("Tag detection completed, check $it for the results.") }
     }
 
-    companion object : LoggerCompanion(DetectTagsCommand::class)
+    companion object : LoggerCompanion(DetectTagsCommand::class) {
+        private const val OUTPUT_FILE_NAME = "detected-tags.json"
+    }
 }
