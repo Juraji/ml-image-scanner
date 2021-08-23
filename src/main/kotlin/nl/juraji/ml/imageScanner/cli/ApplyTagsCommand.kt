@@ -1,10 +1,12 @@
 package nl.juraji.ml.imageScanner.cli
 
 import com.fasterxml.jackson.core.type.TypeReference
+import kotlinx.cli.default
 import nl.juraji.ml.imageScanner.model.face.Face
 import nl.juraji.ml.imageScanner.model.tag.Tag
 import nl.juraji.ml.imageScanner.services.FileService
 import nl.juraji.ml.imageScanner.util.LoggerCompanion
+import nl.juraji.ml.imageScanner.util.cli.booleanOption
 import nl.juraji.ml.imageScanner.util.cli.pathOption
 import org.reactivestreams.Publisher
 import org.springframework.stereotype.Component
@@ -27,6 +29,10 @@ class ApplyTagsCommand(
         shortName = "f",
         description = "Detection result file path for faces"
     )
+    private val force by booleanOption(
+        fullName = "force",
+        description = "Force writing tags (helps with images that will not update)"
+    ).default(false)
 
     override fun executeAsync(): Publisher<*> {
         val tagsFileTypeReference = object : TypeReference<Map<String, List<Tag>>>() {}
@@ -48,7 +54,7 @@ class ApplyTagsCommand(
             .flatMapMany { Flux.fromIterable(it.entries) }
             .map { (path, tList) -> path to tList.joinToString(",") }
             .doOnNext { (p, t) -> logger.info("Tags for $p: $t") }
-            .flatMap { (path, tags) -> fileService.setExifUserComment(path, tags) }
+            .flatMap { (path, tags) -> fileService.setExifUserComment(path, tags, force) }
             .doOnComplete { logger.info("Tags merged and applied!") }
     }
 

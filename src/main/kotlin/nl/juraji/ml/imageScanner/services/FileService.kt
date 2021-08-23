@@ -83,9 +83,8 @@ class FileService(
     fun readExifUserComment(path: Path): Mono<String> =
         deferIo { getExifCompatMetaData(path) }
             .mapNotNull { it.getFieldValue(ExifTagConstants.EXIF_TAG_USER_COMMENT) }
-            .defaultIfEmpty("NO META DATA")
 
-    fun setExifUserComment(source: Path, comment: String): Mono<Path> {
+    fun setExifUserComment(source: Path, comment: String, force: Boolean): Mono<Path> {
         val onImageSupported = deferIo { getExifCompatMetaData(source) }
             .mapNotNull { it.outputSet }
             .switchIfEmpty { Mono.just(TiffOutputSet()) }
@@ -101,7 +100,10 @@ class FileService(
                 source.parent.resolve("META_UPDATED_${source.fileName}").apply {
                     withFIS(source) { fis ->
                         withFOS(this) { fos ->
-                            ExifRewriter().updateExifMetadataLossy(fis, fos, outputSet)
+                            with(ExifRewriter()) {
+                                if (force) updateExifMetadataLossy(fis, fos, outputSet)
+                                else updateExifMetadataLossless(fis, fos, outputSet)
+                            }
                         }
                     }
                 }

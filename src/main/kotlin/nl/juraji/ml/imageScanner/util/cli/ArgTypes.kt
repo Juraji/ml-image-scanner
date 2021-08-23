@@ -20,6 +20,13 @@ fun ArgParser.intOption(
     deprecatedWarning: String? = null
 ) = option(ArgType.Int, fullName, shortName, description, deprecatedWarning)
 
+fun ArgParser.booleanOption(
+    fullName: String? = null,
+    shortName: String? = null,
+    description: String? = null,
+    deprecatedWarning: String? = null
+) = option(ArgType.Boolean, fullName, shortName, description, deprecatedWarning)
+
 fun ArgParser.pathOption(
     fullName: String? = null,
     shortName: String? = null,
