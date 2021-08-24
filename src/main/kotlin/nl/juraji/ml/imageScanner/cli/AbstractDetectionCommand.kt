@@ -54,7 +54,14 @@ abstract class AbstractDetectionCommand<T : Any>(
                     .filter { it.isRegularFile() }
             }
             .parallel()
-            .flatMap { p -> getItemsForPath(p).map { p to it } }
+            .flatMap { p ->
+                getItemsForPath(p)
+                    .map { p to it }
+                    .onErrorResume { t ->
+                        logger.error("Could not run detection on $p: ${t.message}")
+                        Mono.empty<Pair<Path, List<T>>>()
+                    }
+            }
             .doOnNext { (p, items) -> logger.info(logOnDetected(p, items)) }
             .sequential()
             .share()
