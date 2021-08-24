@@ -21,10 +21,10 @@ class DetectFacesCommand(
     outputConfiguration,
     fileService
 ) {
-    override fun logOnBoot(): String = "Start detecting faces (recursively) in $inputFile..."
-    override fun logOnNext(path: Path): String = "Detecting faces in $path"
+    override fun logOnBoot(inputFile: Path): String = "Start detecting faces (recursively) in $inputFile..."
     override fun logOnDetected(path: Path, items: List<Face>): String = "Detected ${items.size} in $path"
-    override fun logOnComplete(): String = "Face detection completed, check $outputFile for the results."
+    override fun logOnComplete(outputFile: Path): String =
+        "Face detection completed, check $outputFile for the results."
 
     override fun getItemsForPath(path: Path): Mono<List<Face>> =
         faceBoxService.detect(path)

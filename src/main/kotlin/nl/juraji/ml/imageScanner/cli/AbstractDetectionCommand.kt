@@ -22,13 +22,13 @@ abstract class AbstractDetectionCommand<T : Any>(
     outputConfiguration: OutputConfiguration,
     private val fileService: FileService
 ) : AsyncCommand(name, actionDescription) {
-    protected val inputFile by pathOption(
+    private val inputFile by pathOption(
         fullName = "input",
         shortName = "i",
         description = "Path to image file or folder with images to detect"
     ).required()
 
-    protected val outputFile by pathOption(
+    private val outputFile by pathOption(
         fullName = "output",
         shortName = "o",
         description = "Output file path (*.json)"
@@ -39,14 +39,13 @@ abstract class AbstractDetectionCommand<T : Any>(
         description = "Create a checkpoint file every n seconds, set to 0 or lower to disable"
     ).default(30)
 
-    protected abstract fun logOnBoot(): String
-    protected abstract fun logOnNext(path: Path): String
+    protected abstract fun logOnBoot(inputFile: Path): String
     protected abstract fun logOnDetected(path: Path, items: List<T>): String
-    protected abstract fun logOnComplete(): String
+    protected abstract fun logOnComplete(outputFile: Path): String
     protected abstract fun getItemsForPath(path: Path): Mono<List<T>>
 
     override fun executeAsync(): Publisher<*> {
-        logger.info(logOnBoot())
+        logger.info(logOnBoot(inputFile))
 
         val detections = Mono.just(inputFile)
             .flatMapMany { root ->
@@ -55,7 +54,6 @@ abstract class AbstractDetectionCommand<T : Any>(
                     .filter { it.isRegularFile() }
             }
             .parallel()
-            .doOnNext { logger.info(logOnNext(it)) }
             .flatMap { p -> getItemsForPath(p).map { p to it } }
             .doOnNext { (p, items) -> logger.info(logOnDetected(p, items)) }
             .sequential()
@@ -68,11 +66,8 @@ abstract class AbstractDetectionCommand<T : Any>(
             .reduce<Map<Path, List<T>>>(emptyMap()) { prev, next -> prev + next }
             .flatMap(fileService::serialize)
             .flatMap { fileService.writeBytesTo(it, outputFile) }
-            .doOnSuccess { logger.info(logOnComplete()) }
+            .doOnSuccess { logger.info(logOnComplete(outputFile)) }
     }
-
-    private fun buildCheckpointFilePath(index: Int): Path =
-        outputFile.parent.resolve("$name-checkpoint.$index.json")
 
     private fun sideEffectCreateCheckpointFiles(detections: Flux<Pair<Path, List<T>>>) {
         logger.info("Creating a checkpoint file every $checkpointInterval seconds!")
@@ -80,7 +75,7 @@ abstract class AbstractDetectionCommand<T : Any>(
         val checkpointCounter = AtomicInteger()
         detections
             .buffer(Duration.ofSeconds(checkpointInterval.toLong()))
-            .doOnNext { logger.info("Checkpoint reached, saving partial...") }
+            .doOnNext { logger.info("Checkpoint reached, saving partial") }
             .map(List<Pair<*, *>>::toMap)
             .flatMap(fileService::serialize)
             .flatMap { bytes ->
@@ -89,6 +84,9 @@ abstract class AbstractDetectionCommand<T : Any>(
             }
             .runCatching(Flux<*>::blockLast)
     }
+
+    private fun buildCheckpointFilePath(index: Int): Path =
+        outputFile.parent.resolve("$name-checkpoint.$index.json")
 
     companion object : LoggerCompanion(DetectTagsCommand::class) {
 

@@ -23,10 +23,9 @@ class DetectTagsCommand(
     outputConfiguration,
     fileService
 ) {
-    override fun logOnBoot(): String = "Start detecting tags (recursively) in $inputFile..."
-    override fun logOnNext(path: Path): String = "Detecting tags in $path"
+    override fun logOnBoot(inputFile: Path): String = "Start detecting tags (recursively) in $inputFile..."
     override fun logOnDetected(path: Path, items: List<Tag>): String = "Detected ${items.size} in $path"
-    override fun logOnComplete(): String = "Tag detection completed, check $outputFile for the results."
+    override fun logOnComplete(outputFile: Path): String = "Tag detection completed, check $outputFile for the results."
 
     override fun getItemsForPath(path: Path): Mono<List<Tag>> =
         tagBoxService.detect(path)
